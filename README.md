@@ -19,14 +19,15 @@ Python · FastAPI · PostgreSQL 16 · SQLAlchemy 2 + Alembic · React · Docker 
 
 ```bash
 cp .env.example .env          # впиши FOOTBALL_DATA_TOKEN (бесплатный ключ на football-data.org)
-docker compose run --rm pipeline
+docker compose run --rm --build pipeline
 ```
 
 Одна команда поднимает Postgres, применяет миграции и загружает все три источника.
 CSV скачивается автоматически по зафиксированному коммиту (версия данных не зависит от ветки `main`).
-Повторный запуск догружает только новое и ничего не дублирует. Расписание: `docker compose run --rm pipeline` из cron.
+Повторный запуск догружает только новое и ничего не дублирует. Расписание: та же команда из cron.
+Ключ `--build` нужен, чтобы после изменений в коде не запускался старый образ.
 
-Загрузить один источник: `docker compose run --rm pipeline python -m pipeline.run csv|football_data|rss`.
+Загрузить один источник: `docker compose run --rm --build pipeline python -m pipeline.run csv|football_data|rss`.
 
 Схема БД: [docs/db_schema.md](docs/db_schema.md).
 

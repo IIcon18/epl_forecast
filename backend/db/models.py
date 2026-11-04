@@ -66,6 +66,7 @@ class Match(Base):
     home_goals: Mapped[int | None] = mapped_column(SmallInteger)
     away_goals: Mapped[int | None] = mapped_column(SmallInteger)
     attendance: Mapped[int | None] = mapped_column(Integer)
+    attendance_status: Mapped[str | None] = mapped_column(String(10))
     stadium: Mapped[str | None] = mapped_column(String(100))
     referee: Mapped[str | None] = mapped_column(String(100))
     is_derby: Mapped[bool | None] = mapped_column(Boolean)

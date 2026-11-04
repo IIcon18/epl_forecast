@@ -125,6 +125,7 @@ def run() -> None:
             for name, details in comparison.items():
                 quality.record(session, run_id, "matches", f"csv_{name}_agrees_with_api", "warn",
                                details["mismatched"] == 0, details)
+            quality.flag_attendance(session, run_id)
             quality.check_matches(session, run_id)
         log.info("football_data: получено %d, вставлено %d, обновлено %d, без изменений %d, отклонено %d",
                  stats.fetched, stats.inserted, stats.updated, stats.skipped, stats.rejected)

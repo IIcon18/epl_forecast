@@ -1,3 +1,4 @@
+import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -5,6 +6,8 @@ from db.models import DqCheck
 from pipeline import settings
 
 MAX_ATTENDANCE = 100_000
+MIN_CORRELATION = 0.85
+MIN_COMPARABLE_MATCHES = 100
 NEWS_MAX_AGE_DAYS = 7
 
 
@@ -12,6 +15,43 @@ def record(session: Session, run_id: int, table: str, name: str, severity: str,
            passed: bool, details: dict | None = None) -> None:
     session.add(DqCheck(run_id=run_id, table_name=table, check_name=name,
                         severity=severity, passed=passed, details=details))
+
+
+def season_consistency(matches: pd.DataFrame) -> list[dict]:
+    played = matches[(matches["attendance"] > 0) & matches["stadium"].notna()]
+    result = []
+    for season, group in played.groupby("season"):
+        baseline = played[played["season"] != season].groupby("stadium")["attendance"].median()
+        comparable = group.assign(base=group["stadium"].map(baseline)).dropna(subset=["base"])
+        corr = comparable["attendance"].corr(comparable["base"]) if len(comparable) > 2 else None
+        result.append({
+            "season": int(season),
+            "comparable": len(comparable),
+            "correlation": None if corr is None or pd.isna(corr) else round(float(corr), 2),
+        })
+    return result
+
+
+def flag_attendance(session: Session, run_id: int) -> None:
+    """Размечает посещаемость: ok / fanless / suspect / missing."""
+    matches = pd.read_sql(text("SELECT season, stadium, attendance FROM matches"), session.connection())
+    seasons = season_consistency(matches)
+    suspect = [
+        s["season"] for s in seasons
+        if s["comparable"] < MIN_COMPARABLE_MATCHES
+        or s["correlation"] is None or s["correlation"] < MIN_CORRELATION
+    ]
+    status = (
+        "CASE WHEN attendance IS NULL THEN 'missing' WHEN attendance = 0 THEN 'fanless' "
+        "WHEN season = ANY(CAST(:suspect AS int[])) THEN 'suspect' ELSE 'ok' END"
+    )
+    session.execute(
+        text(f"UPDATE matches SET attendance_status = {status} "
+             f"WHERE attendance_status IS DISTINCT FROM {status}"),
+        {"suspect": suspect},
+    )
+    record(session, run_id, "matches", "attendance_consistent_with_stadium", "warn", not suspect,
+           {"min_correlation": MIN_CORRELATION, "suspect_seasons": suspect, "seasons": seasons})
 
 
 def check_matches(session: Session, run_id: int) -> None:

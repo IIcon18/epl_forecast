@@ -95,6 +95,7 @@ def run() -> None:
             stats.inserted, stats.updated, stats.skipped = upsert_matches(
                 session, rows, prefer_existing=API_OWNED)
         with SessionLocal.begin() as session:
+            quality.flag_attendance(session, run_id)
             quality.check_matches(session, run_id)
         log.info("csv_history: получено %d, вставлено %d, обновлено %d, без изменений %d, отклонено %d",
                  stats.fetched, stats.inserted, stats.updated, stats.skipped, stats.rejected)
