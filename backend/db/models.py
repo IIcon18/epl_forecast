@@ -124,6 +124,7 @@ class IngestRun(Base):
     rows_inserted: Mapped[int] = mapped_column(Integer, server_default="0")
     rows_updated: Mapped[int] = mapped_column(Integer, server_default="0")
     rows_skipped: Mapped[int] = mapped_column(Integer, server_default="0")
+    rows_rejected: Mapped[int] = mapped_column(Integer, server_default="0")
     watermark: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error: Mapped[str | None] = mapped_column(Text)
     params: Mapped[dict | None] = mapped_column(JSONB)

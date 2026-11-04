@@ -1,5 +1,7 @@
 name: epl_forecast
 
+x-database-url: &database-url postgresql+psycopg://${POSTGRES_USER:-epl}:${POSTGRES_PASSWORD:-epl}@db:5432/${POSTGRES_DB:-epl}
+
 services:
   db:
     image: postgres:16-alpine
@@ -19,12 +21,29 @@ services:
 
   migrate:
     build: ./backend
+    image: epl_forecast_backend
     command: alembic upgrade head
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-epl}:${POSTGRES_PASSWORD:-epl}@db:5432/${POSTGRES_DB:-epl}
+      DATABASE_URL: *database-url
     depends_on:
       db:
         condition: service_healthy
+
+  pipeline:
+    build: ./backend
+    image: epl_forecast_backend
+    command: python -m pipeline.run all
+    environment:
+      DATABASE_URL: *database-url
+      DATA_DIR: /data
+      FOOTBALL_DATA_TOKEN: ${FOOTBALL_DATA_TOKEN:-}
+    volumes:
+      - ./data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
 volumes:
   pgdata:
