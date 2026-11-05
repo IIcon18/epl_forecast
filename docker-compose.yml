@@ -51,6 +51,9 @@ services:
     command: python -m ml.build_features
     environment:
       DATABASE_URL: *database-url
+      MODELS_DIR: /models
+    volumes:
+      - ./models:/models
     depends_on:
       db:
         condition: service_healthy

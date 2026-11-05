@@ -31,7 +31,19 @@ CSV скачивается автоматически по зафиксиров�
 
 Схема БД: [docs/db_schema.md](docs/db_schema.md). Признаки: [docs/features.md](docs/features.md).
 
-Таблица признаков: `docker compose run --rm --build ml`. Тесты (в том числе на утечку): `cd backend && python -m pytest`.
+Таблица признаков: `docker compose run --rm --build ml`.
+Обучение, сравнение моделей и прогнозы: `docker compose run --rm --build ml python -m ml.train` (описание: [docs/models.md](docs/models.md)).
+Отбор признаков: `docker compose run --rm --build ml python -m ml.select_features`.
+Тесты (в том числе на утечку): `cd backend && python -m pytest`.
+
+## Ноутбук с результатами
+
+`notebooks/overview.ipynb` показывает данные, качество посещаемости, признаки, сравнение моделей и прогнозы (код берётся из `backend/`, цифры совпадают с системой).
+`notebooks/overview.html` — та же страница без кода, её удобно отправлять. Пересчитать после новых данных:
+
+```bash
+cd notebooks && ../.venv/bin/python -m nbconvert --to notebook --execute overview.ipynb --inplace && ../.venv/bin/python -m nbconvert --to html --no-input overview.ipynb
+```
 
 ## Сбор данных
 

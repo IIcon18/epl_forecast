@@ -7,7 +7,7 @@ from statistics import mean, median
 import numpy as np
 import pandas as pd
 
-FEATURE_VERSION = "v1"
+FEATURE_VERSION = "v2"
 FORM_WINDOW = 5
 ATTENDANCE_WINDOW = 10
 NEWS_WINDOW_DAYS = 7
@@ -80,10 +80,12 @@ def _team_features(prefix: str, state: TeamState, day: date, position: int | Non
     }
 
 
-def build_features(matches: pd.DataFrame, news: pd.DataFrame | None = None) -> pd.DataFrame:
+def build_features(matches: pd.DataFrame, news: pd.DataFrame | None = None,
+                   history_delay: str = "season") -> pd.DataFrame:
     """Признаки матча считаются только по данным, известным до его начала.
 
     Матчи обрабатываются по датам: сначала признаки всех матчей дня, затем обновление состояния.
+    history_delay: "match" добавляет посещаемость в историю сразу, "season" после конца сезона.
     """
     matches = matches.sort_values(["match_date", "match_id"]).reset_index(drop=True)
     season_start = matches.groupby("season")["match_date"].min().to_dict()
@@ -93,11 +95,21 @@ def build_features(matches: pd.DataFrame, news: pd.DataFrame | None = None) -> p
     stadium_history: dict[str, list[tuple[date, int]]] = defaultdict(list)
     derby_pairs: set[frozenset] = set()
     rows: dict[int, dict] = {}
+    deferred: list[tuple] = []
     current_season = None
+
+    def apply_attendance(update: tuple) -> None:
+        stadium, day, attendance, away_id, ratio = update
+        stadium_history[stadium].append((day, attendance))
+        if ratio is not None:
+            teams[away_id].away_ratios.append(ratio)
 
     for day, games in matches.groupby("match_date", sort=True):
         season = int(games["season"].iloc[0])
         if season != current_season:
+            for update in deferred:
+                apply_attendance(update)
+            deferred.clear()
             for state in teams.values():
                 state.prev_ppg = state.points / state.played if state.played else None
                 state.points = state.played = state.gf = state.ga = 0
@@ -155,9 +167,12 @@ def build_features(matches: pd.DataFrame, news: pd.DataFrame | None = None) -> p
             stadium = home.last_stadium
             if stadium and g.attendance_status == "ok":
                 cap = rows[g.match_id]["att_cap_proxy"]
-                stadium_history[stadium].append((day, int(g.attendance)))
-                if not pd.isna(cap) and cap > 0:
-                    away.away_ratios.append(g.attendance / cap)
+                ratio = g.attendance / cap if not pd.isna(cap) and cap > 0 else None
+                update = (stadium, day, int(g.attendance), g.away_team_id, ratio)
+                if history_delay == "match":
+                    apply_attendance(update)
+                else:
+                    deferred.append(update)
 
     result = pd.DataFrame.from_dict(rows, orient="index")[["match_id", *FEATURE_COLUMNS]]
     meta = matches[META_COLUMNS].set_index("match_id")

@@ -53,39 +53,58 @@ def features_of(frame, match_id):
 
 
 MATCH_IDS = [1, 7, 20, 31, 45, 60, 75, 85, 90]
+MODES = ["match", "season"]
 
 
+@pytest.mark.parametrize("mode", MODES)
 @pytest.mark.parametrize("match_id", MATCH_IDS)
-def test_features_do_not_depend_on_the_future(match_id):
+def test_features_do_not_depend_on_the_future(match_id, mode):
     matches = make_matches()
     day = matches.loc[matches["match_id"] == match_id, "match_date"].iloc[0]
     known = matches[matches["match_date"] <= day]
     known = hide_outcomes(known, known["match_date"] == day)
     pd.testing.assert_series_equal(
-        features_of(build_features(matches), match_id),
-        features_of(build_features(known), match_id),
+        features_of(build_features(matches, history_delay=mode), match_id),
+        features_of(build_features(known, history_delay=mode), match_id),
         check_names=False,
     )
 
 
+@pytest.mark.parametrize("mode", MODES)
 @pytest.mark.parametrize("match_id", MATCH_IDS)
-def test_features_do_not_depend_on_own_outcome(match_id):
+def test_features_do_not_depend_on_own_outcome(match_id, mode):
     matches = make_matches()
     changed = matches.copy()
     changed.loc[changed["match_id"] == match_id, OUTCOME_COLUMNS] = [9, 0, 99999]
     pd.testing.assert_series_equal(
-        features_of(build_features(matches), match_id),
-        features_of(build_features(changed), match_id),
+        features_of(build_features(matches, history_delay=mode), match_id),
+        features_of(build_features(changed, history_delay=mode), match_id),
         check_names=False,
     )
 
 
-def test_suspect_attendance_never_enters_features():
+@pytest.mark.parametrize("mode", MODES)
+def test_suspect_attendance_never_enters_features(mode):
     matches = make_matches()
     matches.loc[matches["attendance_status"] == "suspect", "attendance"] = 10**9
-    frame = build_features(matches)
+    frame = build_features(matches, history_delay=mode)
     attendance_features = [c for c in FEATURE_COLUMNS if c.startswith("att_")]
     assert frame[attendance_features].max().max() < 10**8
+
+
+def test_season_mode_freezes_attendance_history_within_a_season():
+    matches = make_matches()
+    frame = build_features(matches, history_delay="season")
+    in_second_season = frame[frame["season"] == 2001]
+    assert (in_second_season.groupby("home_team_id")["att_last1"].nunique() == 1).all()
+    assert (in_second_season.groupby("home_team_id")["att_hist_n"].nunique() == 1).all()
+
+
+def test_match_mode_updates_history_during_a_season():
+    matches = make_matches()
+    frame = build_features(matches, history_delay="match")
+    in_second_season = frame[frame["season"] == 2001]
+    assert (in_second_season.groupby("home_team_id")["att_hist_n"].nunique() > 1).all()
 
 
 def test_news_of_match_day_and_later_is_ignored():
