@@ -110,6 +110,19 @@ class NewsArticleTeam(Base):
     )
 
 
+class MatchFeatures(Base):
+    __tablename__ = "match_features"
+
+    match_id: Mapped[int] = mapped_column(
+        ForeignKey("matches.id", ondelete="CASCADE"), primary_key=True
+    )
+    feature_version: Mapped[str] = mapped_column(String(16))
+    features: Mapped[dict] = mapped_column(JSONB)
+    built_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class IngestRun(Base):
     __tablename__ = "ingest_runs"
     __table_args__ = (Index("ix_ingest_runs_source_started", "source", "started_at"),)

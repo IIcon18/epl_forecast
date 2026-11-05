@@ -29,7 +29,9 @@ CSV скачивается автоматически по зафиксиров�
 
 Загрузить один источник: `docker compose run --rm --build pipeline python -m pipeline.run csv|football_data|rss`.
 
-Схема БД: [docs/db_schema.md](docs/db_schema.md).
+Схема БД: [docs/db_schema.md](docs/db_schema.md). Признаки: [docs/features.md](docs/features.md).
+
+Таблица признаков: `docker compose run --rm --build ml`. Тесты (в том числе на утечку): `cd backend && python -m pytest`.
 
 ## Сбор данных
 
