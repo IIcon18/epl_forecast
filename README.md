@@ -36,6 +36,14 @@ CSV скачивается автоматически по зафиксиров�
 Отбор признаков: `docker compose run --rm --build ml python -m ml.select_features`.
 Тесты (в том числе на утечку): `cd backend && python -m pytest`.
 
+## API
+
+```bash
+docker compose up -d --build api
+```
+
+Документация и пробные запросы: http://localhost:8000/docs. Сейчас доступны `GET /health` и `GET /api/model` (рабочая модель и её метрики).
+
 ## Ноутбук с результатами
 
 `notebooks/overview.ipynb` показывает данные, качество посещаемости, признаки, сравнение моделей и прогнозы (код берётся из `backend/`, цифры совпадают с системой).
