@@ -3,11 +3,13 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from api.data import router as data_router
 from api.deps import get_session
 from api.schemas import Health, ModelInfo
 from db.models import ModelVersion
 
 app = FastAPI(title="Прогноз посещаемости матчей АПЛ")
+app.include_router(data_router)
 
 
 @app.get("/health", response_model=Health)
