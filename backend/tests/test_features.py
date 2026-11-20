@@ -129,3 +129,26 @@ def test_build_is_deterministic():
 def test_features_exclude_outcome_columns():
     assert set(FEATURE_COLUMNS).isdisjoint({"attendance", "home_goals", "away_goals", "status"})
     assert set(FEATURE_COLUMNS) <= set(build_features(make_matches()).columns)
+
+
+def test_feature_quality_checks_pass_on_clean_features():
+    from ml.quality import check_features
+
+    matches = make_matches()
+    frame = build_features(matches)
+    failed = [c["name"] for c in check_features(frame, len(matches)) if c["severity"] == "error" and not c["passed"]]
+    assert failed == []
+
+
+def test_feature_quality_checks_catch_corrupted_features():
+    from ml.quality import check_features
+
+    matches = make_matches()
+    frame = build_features(matches)
+    frame.loc[0, "h_pos"] = 25
+    frame.loc[1, "month"] = 13
+    frame.loc[2, "h_ppg5"] = np.inf
+    frame = pd.concat([frame, frame.iloc[[0]]], ignore_index=True)
+    failed = {c["name"] for c in check_features(frame, len(matches)) if c["severity"] == "error" and not c["passed"]}
+    assert failed == {"features_one_row_per_match", "features_have_no_infinite_values",
+                      "calendar_features_in_range", "table_position_in_1_20", "points_per_game_in_0_3"}

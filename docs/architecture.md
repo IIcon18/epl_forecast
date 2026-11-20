@@ -1,6 +1,6 @@
 # Архитектура системы
 
-Пунктирные блоки ещё не реализованы.
+Пунктиром обозначены компоненты, которые ещё не реализованы.
 
 ```mermaid
 flowchart TB
@@ -10,9 +10,11 @@ flowchart TB
         RSS["BBC Sport RSS<br/>(текст новостей)"]
     end
 
-    subgraph PIPE["Сбор данных: backend/pipeline"]
+    SCH["Планировщик (scheduler)<br/>раз в N часов запускает три шага"]
+
+    subgraph PIPE["1. Сбор данных: backend/pipeline"]
         COL["Сборщики: повторы, лимиты запросов,<br/>UPSERT (идемпотентность)"]
-        DQ["Проверки качества и<br/>разметка достоверности посещаемости"]
+        DQ["Проверки качества и разметка<br/>достоверности посещаемости"]
     end
 
     subgraph DB["PostgreSQL (миграции Alembic)"]
@@ -20,17 +22,19 @@ flowchart TB
         OPS["Служебные: ingest_runs (журнал),<br/>dq_checks"]
         FEAT["match_features<br/>(витрина признаков)"]
         REG["experiments, model_versions,<br/>predictions"]
+        VIEWS["Представления для дашборда:<br/>v_match_forecast, v_model_quality"]
     end
 
-    subgraph ML["Признаки и модели: backend/ml"]
-        FB["features.py<br/>один код для обучения и прогноза"]
-        TR["train.py: наивная база, линейная,<br/>бустинг, лес; проверка во времени"]
+    subgraph ML["backend/ml"]
+        FB["2. build_features.py<br/>один код признаков для обучения и прогноза<br/>+ проверки качества витрины"]
+        PR["3. predict.py: прогноз новых матчей<br/>рабочей моделью"]
+        TR["train.py: наивная база, линейная модель,<br/>бустинг, лес; проверка во времени"]
         ART[("models/*.joblib")]
     end
 
+    GF["Grafana: дашборд и служебный дашборд<br/>(читает под пользователем только на чтение)"]
+    BACK["FastAPI: модель, матчи, качество"]
     NB["notebooks/overview<br/>(обзор для отчёта)"]
-    BACK["FastAPI"]
-    DASH["Дашборд React"]
     OPT["Факультативные: интерпретируемость,<br/>журнал экспериментов, мониторинг"]
 
     CSV --> COL
@@ -43,19 +47,28 @@ flowchart TB
     DQ --> RAW
     RAW --> FB
     FB --> FEAT
+    FB --> OPS
     FEAT --> TR
     TR --> REG
     TR --> ART
+    ART --> PR
+    FEAT --> PR
+    PR --> REG
+    REG --> VIEWS
+    RAW --> VIEWS
+    VIEWS --> GF
+    OPS --> GF
+    REG --> BACK
     REG --> NB
     OPS --> NB
-    REG -.-> BACK
-    ART -.-> BACK
-    BACK -.-> DASH
+    SCH --> COL
+    SCH --> FB
+    SCH --> PR
     REG -.-> OPT
-    OPT -.-> DASH
+    OPT -.-> GF
 
     classDef planned stroke-dasharray: 5 5
-    class BACK,DASH,OPT planned
+    class OPT planned
 ```
 
 ## Как запускается
@@ -63,7 +76,9 @@ flowchart TB
 ```
 docker compose run --rm --build pipeline                       сбор данных (+ миграции, база)
 docker compose run --rm --build ml                              признаки
-docker compose run --rm --build ml python -m ml.train           обучение, прогнозы
+docker compose run --rm --build ml python -m ml.train           обучение, выбор модели, прогнозы
+docker compose up -d --build grafana api                        дашборд и API
+docker compose --profile schedule up -d --build scheduler       регулярное обновление (по желанию)
 ```
 
 ## Слои
@@ -72,7 +87,8 @@ docker compose run --rm --build ml python -m ml.train           обучение
 |---|---|---|
 | Источники и сбор | `backend/pipeline/` | Забирает данные, не дублирует, переживает сбои, пишет журнал |
 | Хранилище | PostgreSQL, `backend/db/`, `backend/alembic/` | Сырые факты, журнал, результаты проверок, признаки, реестр моделей |
-| Качество | `pipeline/quality.py` | Проверки и пометка недостоверных сезонов посещаемости |
+| Качество | `pipeline/quality.py`, `ml/quality.py` | Проверки входных данных, разметка недостоверных сезонов, проверки витрины признаков |
 | Признаки | `backend/ml/features.py` | Лаговые, оконные, календарные признаки без утечки из будущего |
-| Модели | `backend/ml/train.py` и др. | Обучение, проверка во времени, реестр версий, прогнозы |
-| Показ | `backend/api`, `frontend/` (план) | API и дашборд |
+| Модели | `backend/ml/train.py`, `predict.py` | Обучение и выбор модели, версии, прогноз новых матчей без переобучения |
+| Показ | `grafana/`, `backend/api/` | Дашборды и API |
+| Регулярность | `backend/scheduler.py` | Раз в N часов: сбор, признаки, прогноз |

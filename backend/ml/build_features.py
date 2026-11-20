@@ -7,8 +7,9 @@ from sqlalchemy.dialects.postgresql import insert
 
 from db.models import MatchFeatures
 from db.session import SessionLocal, engine
-from ml import data, text
+from ml import data, quality, text
 from ml.features import FEATURE_COLUMNS, FEATURE_VERSION, build_features
+from pipeline.quality import record
 
 log = logging.getLogger(__name__)
 CHUNK = 1000
@@ -29,6 +30,16 @@ def run() -> None:
         matches = data.load_matches(conn)
         news = text.score_news(data.load_news(conn))
     frame = build_features(matches, news)
+    checks = quality.check_features(frame, len(matches))
+    with SessionLocal.begin() as session:
+        for c in checks:
+            record(session, None, "match_features", c["name"], c["severity"], c["passed"], c["details"])
+    failed = [c["name"] for c in checks if c["severity"] == "error" and not c["passed"]]
+    if failed:
+        raise RuntimeError(f"витрина признаков не обновлена, не пройдены проверки: {failed}")
+    warnings = [c["name"] for c in checks if not c["passed"]]
+    if warnings:
+        log.warning("предупреждения проверок витрины: %s", warnings)
     rows = [
         {
             "match_id": int(r["match_id"]),

@@ -11,7 +11,7 @@ MIN_COMPARABLE_MATCHES = 100
 NEWS_MAX_AGE_DAYS = 7
 
 
-def record(session: Session, run_id: int, table: str, name: str, severity: str,
+def record(session: Session, run_id: int | None, table: str, name: str, severity: str,
            passed: bool, details: dict | None = None) -> None:
     session.add(DqCheck(run_id=run_id, table_name=table, check_name=name,
                         severity=severity, passed=passed, details=details))
