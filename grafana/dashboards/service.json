@@ -35,6 +35,101 @@
   ],
   "panels": [
     {
+      "id": 5,
+      "type": "table",
+      "title": "Последний подбор: модели и их варианты",
+      "description": "Одна строка — один набор настроек. MAE — средняя ошибка в зрителях на проверке 2010–2018. Чем меньше, тем лучше. № — идентификатор для повтора эксперимента.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "epl-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 12
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "epl-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH latest_search AS (\n  SELECT created_at FROM experiments WHERE kind = 'cv'\n  GROUP BY created_at HAVING count(*) > count(DISTINCT model_name)\n  ORDER BY created_at DESC LIMIT 1\n), candidates AS (\n  SELECT e.*, count(*) OVER (PARTITION BY model_name) AS variants\n  FROM experiments e JOIN latest_search s USING (created_at)\n  WHERE e.kind = 'cv'\n)\nSELECT c.id AS \"№\",\n  CASE c.model_name WHEN 'naive' THEN 'Наивный прогноз' WHEN 'ridge' THEN 'Ridge'\n    WHEN 'hgb' THEN 'Бустинг' WHEN 'rf' THEN 'Случайный лес' ELSE c.model_name END AS \"Модель\",\n  c.variants AS \"Вариантов у модели\",\n  CASE c.model_name\n    WHEN 'naive' THEN 'Среднее последних 10 домашних матчей'\n    WHEN 'ridge' THEN concat('alpha = ', c.params->>'alpha')\n    WHEN 'hgb' THEN concat('глубина = ', c.params->>'max_depth', ', минимум матчей в листе = ', c.params->>'min_samples_leaf')\n    WHEN 'rf' THEN concat('деревьев = ', c.params->>'n_estimators')\n    ELSE c.params::text END AS \"Настройки\",\n  round((c.metrics->>'mae')::numeric, 2) AS \"MAE, зрителей\",\n  CASE WHEN c.model_name = 'naive' THEN 'База для сравнения'\n    WHEN EXISTS (SELECT 1 FROM experiments f WHERE f.created_at = c.created_at\n      AND f.kind = 'final' AND f.model_name = c.model_name AND f.params = c.params)\n    THEN 'Выбрана для прогноза' END AS \"Итог подбора\"\nFROM candidates c\nORDER BY CASE c.model_name WHEN 'naive' THEN 1 WHEN 'ridge' THEN 2 WHEN 'hgb' THEN 3 WHEN 'rf' THEN 4 ELSE 5 END,\n  (c.metrics->>'mae')::numeric, c.id"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Журнал экспериментов",
+      "description": "Каждый запуск обучения записывает конфигурацию, версию данных (хеш) и метрики. cv: скользящая проверка каждого набора параметров, test: тест 2022/23 с параметрами, выбранными по CV. Номер строки можно передать в ml.reproduce --id.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "epl-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "epl-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT id AS \"№\", created_at AS \"Время\", kind AS \"Вид\", model_name AS \"Модель\", params::text AS \"Параметры\", round((metrics->>'mae')::numeric, 2) AS \"MAE\", round((metrics->>'rmse')::numeric, 2) AS \"RMSE\", left(data_hash, 8) AS \"Хеш данных\", seed AS \"Зерно\" FROM experiments WHERE kind IN ('cv', 'test') ORDER BY id DESC LIMIT 30"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Время"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": 1,
       "type": "table",
       "title": "Журнал загрузок данных",
@@ -45,7 +140,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 0,
+        "y": 21,
         "w": 24,
         "h": 8
       },
@@ -136,7 +231,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 8,
+        "y": 29,
         "w": 14,
         "h": 10
       },
@@ -222,7 +317,7 @@
       },
       "gridPos": {
         "x": 14,
-        "y": 8,
+        "y": 29,
         "w": 10,
         "h": 10
       },
@@ -254,60 +349,6 @@
             "matcher": {
               "id": "byName",
               "options": "Обучена"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "dateTimeAsLocal"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "id": 4,
-      "type": "table",
-      "title": "Журнал экспериментов",
-      "description": "Каждый запуск обучения записывает конфигурацию, версию данных (хеш) и метрики. cv: скользящая проверка, test: тест 2022/23.",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "epl-postgres"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 18,
-        "w": 24,
-        "h": 9
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "epl-postgres"
-          },
-          "editorMode": "code",
-          "format": "table",
-          "rawQuery": true,
-          "rawSql": "SELECT id AS \"№\", created_at AS \"Время\", kind AS \"Вид\", model_name AS \"Модель\", round((metrics->>'mae')::numeric) AS \"MAE\", round((metrics->>'rmse')::numeric) AS \"RMSE\", left(data_hash, 8) AS \"Хеш данных\", seed AS \"Зерно\" FROM experiments WHERE kind IN ('cv', 'test') ORDER BY id DESC LIMIT 16"
-        }
-      ],
-      "options": {
-        "showHeader": true,
-        "cellHeight": "sm"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto"
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Время"
             },
             "properties": [
               {

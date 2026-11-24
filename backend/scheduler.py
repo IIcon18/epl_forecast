@@ -3,14 +3,22 @@ import os
 import subprocess
 import sys
 import time
+from typing import NamedTuple
 
 log = logging.getLogger("scheduler")
 INTERVAL_HOURS = float(os.environ.get("SCHEDULE_INTERVAL_HOURS", "6"))
-# (шаг, команда, шаг, без которого этот не имеет смысла)
+
+
+class Step(NamedTuple):
+    name: str
+    command: list[str]
+    requires: str | None = None
+
+
 STEPS = [
-    ("сбор", [sys.executable, "-m", "pipeline.run", "all"], None),
-    ("признаки", [sys.executable, "-m", "ml.build_features"], None),
-    ("прогноз", [sys.executable, "-m", "ml.predict"], "признаки"),
+    Step("сбор", [sys.executable, "-m", "pipeline.run", "all"]),
+    Step("признаки", [sys.executable, "-m", "ml.build_features"]),
+    Step("прогноз", [sys.executable, "-m", "ml.predict"], requires="признаки"),
 ]
 
 
@@ -34,12 +42,12 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     once = "--once" in sys.argv
     while True:
-        started = time.time()
+        started = time.monotonic()
         success = run_once()
         log.info("цикл завершён %s", "успешно" if success else "с ошибками")
         if once:
             sys.exit(0 if success else 1)
-        time.sleep(max(INTERVAL_HOURS * 3600 - (time.time() - started), 60))
+        time.sleep(max(INTERVAL_HOURS * 3600 - (time.monotonic() - started), 60))
 
 
 if __name__ == "__main__":

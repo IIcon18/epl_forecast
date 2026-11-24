@@ -115,6 +115,7 @@ def quality(session: Session = Depends(get_session)):
     result = [row(*r) for r in rows]
     if rows:
         total = sum(r.matches for r in rows)
-        weighted = lambda i: sum(r[1] * float(r[i]) for r in rows) / total  # noqa: E731
-        result.append(row(None, total, weighted(2), weighted(3)))
+        weighted_model = sum(r.matches * float(r.mae_model) for r in rows) / total
+        weighted_naive = sum(r.matches * float(r.mae_naive) for r in rows) / total
+        result.append(row(None, total, weighted_model, weighted_naive))
     return result

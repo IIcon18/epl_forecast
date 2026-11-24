@@ -14,7 +14,6 @@ def out_of_range(frame: pd.DataFrame, column: str, low: float, high: float) -> i
 
 
 def check_features(frame: pd.DataFrame, matches_count: int) -> list[dict]:
-    """Проверки витрины признаков: полнота, диапазоны, пропуски, готовность к прогнозу."""
     checks = []
 
     def add(name: str, severity: str, passed: bool, **details):

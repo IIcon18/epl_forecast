@@ -1,7 +1,5 @@
 # Архитектура системы
 
-Пунктиром обозначены компоненты, которые ещё не реализованы.
-
 ```mermaid
 flowchart TB
     subgraph SRC["Источники данных"]
@@ -28,14 +26,14 @@ flowchart TB
     subgraph ML["backend/ml"]
         FB["2. build_features.py<br/>один код признаков для обучения и прогноза<br/>+ проверки качества витрины"]
         PR["3. predict.py: прогноз новых матчей<br/>рабочей моделью"]
-        TR["train.py: наивная база, линейная модель,<br/>бустинг, лес; проверка во времени"]
+        TR["train.py: наивная база, линейная модель,<br/>бустинг, лес; подбор параметров и проверка во времени"]
         ART[("models/*.joblib")]
     end
 
     GF["Grafana: дашборд и служебный дашборд<br/>(читает под пользователем только на чтение)"]
     BACK["FastAPI: модель, матчи, качество"]
     NB["notebooks/overview<br/>(обзор для отчёта)"]
-    OPT["Факультативные: интерпретируемость,<br/>журнал экспериментов, мониторинг"]
+    REPLAY["reproduce.py: повтор эксперимента по ID"]
 
     CSV --> COL
     API --> COL
@@ -64,11 +62,9 @@ flowchart TB
     SCH --> COL
     SCH --> FB
     SCH --> PR
-    REG -.-> OPT
-    OPT -.-> GF
-
-    classDef planned stroke-dasharray: 5 5
-    class OPT planned
+    REG --> REPLAY
+    FEAT --> REPLAY
+    REG --> GF
 ```
 
 ## Как запускается

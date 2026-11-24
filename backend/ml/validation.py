@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from ml.dataset import split_columns
+from ml.dataset import LAST_TRAIN_SEASON, TEST_SEASON, split_columns
 from ml.estimators import RATIO_CLIP, TRAIN_RATIO_RANGE, make_model
 
 KEEP = ["match_id", "season", "attendance", "baseline", "att_cap_proxy"]
@@ -37,6 +37,12 @@ def walk_forward(data: pd.DataFrame, name: str, features: list[str], params: dic
             continue
         parts.append(test[KEEP].assign(pred=fit_predict(train, test, name, features, params)))
     return pd.concat(parts, ignore_index=True)
+
+
+def holdout(data: pd.DataFrame, name: str, features: list[str], params: dict) -> pd.DataFrame:
+    train = data[data["season"] <= LAST_TRAIN_SEASON]
+    test = data[data["season"] == TEST_SEASON]
+    return test[KEEP].assign(pred=fit_predict(train, test, name, features, params))
 
 
 def metrics(frame: pd.DataFrame) -> dict:
