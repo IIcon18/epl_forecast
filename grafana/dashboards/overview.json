@@ -1,0 +1,1282 @@
+{
+  "uid": "epl-overview",
+  "title": "Посещаемость матчей АПЛ: факт и прогноз",
+  "tags": [
+    "epl",
+    "прогноз"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 1,
+  "refresh": "1m",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {
+    "hidden": true
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "season",
+        "label": "Сезон (год начала)",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "epl-postgres"
+        },
+        "query": "SELECT DISTINCT season AS __text, season AS __value FROM matches ORDER BY season DESC",
+        "refresh": 1,
+        "sort": 0,
+        "includeAll": false,
+        "multi": false,
+        "hide": 0,
+        "current": {
+          "selected": true,
+          "text": "2022",
+          "value": "2022"
+        },
+        "definition": "SELECT DISTINCT season AS __text, season AS __value FROM matches ORDER BY season DESC"
+      },
+      {
+        "name": "team",
+        "label": "Клуб",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "epl-postgres"
+        },
+        "query": "SELECT DISTINCT t.name AS __text, t.name AS __value FROM teams t JOIN matches m ON m.home_team_id = t.id WHERE m.season = $season ORDER BY t.name",
+        "refresh": 1,
+        "sort": 0,
+        "includeAll": false,
+        "multi": false,
+        "hide": 0,
+        "current": {
+          "selected": true,
+          "text": "Arsenal",
+          "value": "Arsenal"
+        },
+        "definition": "SELECT DISTINCT t.name AS __text, t.name AS __value FROM teams t JOIN matches m ON m.home_team_id = t.id WHERE m.season = $season ORDER BY t.name"
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "Служебный дашборд: загрузки, проверки, эксперименты",
+      "type": "link",
+      "icon": "doc",
+      "url": "/d/epl-service",
+      "targetBlank": false,
+      "tooltip": "Журнал загрузок, проверки качества, версии моделей"
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Рабочая модель",
+      "description": "Версия модели из реестра, по которой считаются прогнозы.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "epl-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "epl-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT model_name || ' v' || id AS \"Модель\" FROM model_versions WHERE status = 'production' ORDER BY id DESC LIMIT 1"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/^Модель$/",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2a78d6",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "нет данных"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "MAE модели",
+      "description": "Средняя абсолютная ошибка (MAE) на матчах с достоверной посещаемостью вне обучения, сезоны 2010–2018 и 2022/23.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "epl-postgres"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "epl-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT sum(matches * mae_model) / sum(matches) AS \"Модель\" FROM v_model_quality"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2a78d6",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "нет данных"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "MAE наивного",
+      "description": "Базовое решение: средняя посещаемость последних 10 домашних матчей стадиона.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "epl-postgres"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "epl-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT sum(matches * mae_naive) / sum(matches) AS \"Наивный\" FROM v_model_quality"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#8b8a85",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "нет данных"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Выигрыш модели",
+      "description": "Насколько ошибка модели меньше ошибки наивного прогноза. Около нуля: посещаемость почти полностью определяется вместимостью стадиона.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "epl-postgres"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "epl-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT (1 - sum(matches * mae_model) / sum(matches * mae_naive)) * 100 AS \"Выигрыш\" FROM v_model_quality"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#eb6834",
+                "value": null
+              },
+              {
+                "color": "#2a78d6",
+                "value": 0.5
+              }
+            ]
+          },
+          "noValue": "нет данных"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Достоверных матчей",
+      "description": "Только они используются для обучения и оценки. Из остальных сезонов посещаемость в источнике недостоверна.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "epl-postgres"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "epl-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) FILTER (WHERE attendance_status = 'ok') AS \"Достоверных\" FROM matches"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2a78d6",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "нет данных"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Ближайших матчей",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "epl-postgres"
+      },
+      "gridPos": {
+        "x": 20,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "epl-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS \"Матчей\" FROM v_match_forecast WHERE status IN ('TIMED', 'SCHEDULED') AND predicted IS NOT NULL"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2a78d6",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "нет данных"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "Клуб и сезон: факт, прогноз и наивный прогноз",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 8,
+      "type": "trend",
+      "title": "Домашние матчи: факт, прогноз и наивный прогноз",
+      "description": "По горизонтали порядковый номер домашнего матча в сезоне. Если посещаемость сезона недостоверна, линия факта не рисуется.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "epl-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 16,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "epl-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT row_number() OVER (ORDER BY match_date) AS \"Матч\", attendance_trusted AS \"Факт\", predicted AS \"Прогноз\", naive AS \"Наивный\" FROM v_match_forecast WHERE home_team = ${team:sqlstring} AND season = $season AND status = 'FINISHED' ORDER BY match_date"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 6,
+            "spanNulls": false,
+            "axisLabel": "зрителей",
+            "axisPlacement": "left"
+          },
+          "unit": "none",
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Матч"
+            },
+            "properties": [
+              {
+                "id": "custom.axisLabel",
+                "value": "номер домашнего матча"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "auto"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Факт"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#2a78d6"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Прогноз"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#eb6834"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Наивный"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8b8a85"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    8,
+                    6
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Достоверность в сезоне",
+      "description": "Доля домашних матчей клуба, посещаемость которых прошла проверку. Если мало, факт на графике не показывается.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "epl-postgres"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 5,
+        "w": 8,
+        "h": 3
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "epl-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) FILTER (WHERE attendance_status = 'ok') * 100.0 / count(*) AS \"Достоверных матчей\" FROM v_match_forecast WHERE season = $season AND home_team = ${team:sqlstring}"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#eb6834",
+                "value": null
+              },
+              {
+                "color": "#2a78d6",
+                "value": 90
+              }
+            ]
+          },
+          "noValue": "нет данных"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "MAE модели (клуб, сезон)",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "epl-postgres"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 8,
+        "w": 8,
+        "h": 3
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "epl-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT avg(abs(predicted - attendance_trusted)) AS \"Модель\" FROM v_match_forecast WHERE home_team = ${team:sqlstring} AND season = $season AND status = 'FINISHED'"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#2a78d6",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "нет достоверного факта"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "MAE наивного (клуб, сезон)",
+      "description": "",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "epl-postgres"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 11,
+        "w": 8,
+        "h": 3
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "epl-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT avg(abs(naive - attendance_trusted)) AS \"Наивный\" FROM v_match_forecast WHERE home_team = ${team:sqlstring} AND season = $season AND status = 'FINISHED'"
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#8b8a85",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "нет достоверного факта"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 12,
+      "type": "barchart",
+      "title": "Ошибка прогноза по матчам (прогноз минус факт)",
+      "description": "Положительное значение: модель завысила посещаемость, отрицательное: занизила.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "epl-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 10,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "epl-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT away_team AS \"Соперник\", predicted - attendance_trusted AS \"Прогноз − факт\" FROM v_match_forecast WHERE home_team = ${team:sqlstring} AND season = $season AND status = 'FINISHED' ORDER BY match_date"
+        }
+      ],
+      "options": {
+        "xField": "Соперник",
+        "orientation": "vertical",
+        "xTickLabelRotation": -45,
+        "showValue": "never",
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        },
+        "barWidth": 0.8,
+        "groupWidth": 0.8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#2a78d6"
+          },
+          "unit": "none",
+          "custom": {
+            "axisLabel": "зрителей",
+            "fillOpacity": 85
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 13,
+      "type": "table",
+      "title": "Матчи сезона",
+      "description": "«Достоверность»: ok, suspect (значение в источнике недостоверно), fanless (матч без зрителей), missing (ещё не сыгран).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "epl-postgres"
+      },
+      "gridPos": {
+        "x": 10,
+        "y": 14,
+        "w": 14,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "epl-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT to_char(match_date, 'YYYY-MM-DD') AS \"Дата\", away_team AS \"Соперник\", attendance AS \"Факт (источник)\", attendance_status AS \"Достоверность\", predicted AS \"Прогноз\", naive AS \"Наивный\", predicted - attendance_trusted AS \"Ошибка\" FROM v_match_forecast WHERE home_team = ${team:sqlstring} AND season = $season ORDER BY match_date"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          },
+          "noValue": "—"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Дата"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Достоверность"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "ok": {
+                        "color": "#2a78d6",
+                        "text": "ok"
+                      },
+                      "suspect": {
+                        "color": "#eb6834",
+                        "text": "suspect"
+                      },
+                      "fanless": {
+                        "color": "#8b8a85",
+                        "text": "fanless"
+                      },
+                      "missing": {
+                        "color": "#8b8a85",
+                        "text": "missing"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ошибка"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "#eb6834",
+                      "value": null
+                    },
+                    {
+                      "color": "text",
+                      "value": -3000
+                    },
+                    {
+                      "color": "text",
+                      "value": -1000
+                    },
+                    {
+                      "color": "text",
+                      "value": 1000
+                    },
+                    {
+                      "color": "#eb6834",
+                      "value": 3000
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 14,
+      "type": "row",
+      "title": "Качество модели и достоверность данных по сезонам",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 15,
+      "type": "barchart",
+      "title": "Ошибка по сезонам: модель и наивный прогноз",
+      "description": "Средняя абсолютная ошибка в зрителях (ниже лучше). Только сезоны с достоверной посещаемостью вне обучения. Всплески 2016–2017: переезды «Вест Хэма» и «Тоттенхэма» на новые стадионы.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "epl-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "epl-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT season::text AS \"Сезон\", mae_model AS \"Модель\", mae_naive AS \"Наивный\" FROM v_model_quality ORDER BY season"
+        }
+      ],
+      "options": {
+        "xField": "Сезон",
+        "orientation": "vertical",
+        "xTickLabelRotation": -45,
+        "showValue": "never",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "barWidth": 0.9,
+        "groupWidth": 0.8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "axisLabel": "MAE, зрителей",
+            "fillOpacity": 85
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Модель"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#2a78d6"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Наивный"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8b8a85"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 16,
+      "type": "barchart",
+      "title": "Достоверность посещаемости по сезонам",
+      "description": "Для сезонов 2019/20, 2021/22 и 2023–2025 посещаемость в источнике не связана со стадионом, такие матчи исключены из обучения и оценки.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "epl-postgres"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "epl-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT season::text AS \"Сезон\", count(*) FILTER (WHERE attendance_status = 'ok') AS \"Достоверно\", count(*) FILTER (WHERE attendance_status = 'suspect') AS \"Недостоверно\", count(*) FILTER (WHERE attendance_status = 'fanless') AS \"Без зрителей\", count(*) FILTER (WHERE attendance_status = 'missing') AS \"Ещё не сыгран\" FROM matches GROUP BY season ORDER BY season"
+        }
+      ],
+      "options": {
+        "xField": "Сезон",
+        "orientation": "vertical",
+        "xTickLabelRotation": -90,
+        "stacking": "normal",
+        "showValue": "never",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        },
+        "barWidth": 0.9,
+        "groupWidth": 0.9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "axisLabel": "матчей",
+            "fillOpacity": 90
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Достоверно"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#2a78d6"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Недостоверно"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#eb6834"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Без зрителей"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8b8a85"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ещё не сыгран"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#c9c8c2"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 17,
+      "type": "row",
+      "title": "Прогноз на ближайшие матчи",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 33,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 18,
+      "type": "table",
+      "title": "Ближайшие матчи",
+      "description": "Прогноз рабочей модели на предстоящие матчи. «Поправка модели» показывает, насколько модель отличается от наивного прогноза.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "epl-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 34,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "epl-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT to_char(match_date, 'YYYY-MM-DD') AS \"Дата\", home_team AS \"Хозяева\", away_team AS \"Гости\", predicted AS \"Прогноз\", naive AS \"Наивный\", predicted - naive AS \"Поправка модели\" FROM v_match_forecast WHERE status IN ('TIMED', 'SCHEDULED') AND predicted IS NOT NULL ORDER BY match_date, home_team LIMIT 60"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "Дата",
+            "desc": false
+          }
+        ]
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          },
+          "noValue": "—"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Дата"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

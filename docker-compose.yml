@@ -1,0 +1,121 @@
+name: epl_forecast
+
+x-database-url: &database-url postgresql+psycopg://${POSTGRES_USER:-epl}:${POSTGRES_PASSWORD:-epl}@db:5432/${POSTGRES_DB:-epl}
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-epl}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-epl}
+      POSTGRES_DB: ${POSTGRES_DB:-epl}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    build: ./backend
+    image: epl_forecast_backend
+    command: alembic upgrade head
+    environment:
+      DATABASE_URL: *database-url
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:-grafana}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  pipeline:
+    build: ./backend
+    image: epl_forecast_backend
+    command: python -m pipeline.run all
+    environment:
+      DATABASE_URL: *database-url
+      DATA_DIR: /data
+      FOOTBALL_DATA_TOKEN: ${FOOTBALL_DATA_TOKEN:-}
+    volumes:
+      - ./data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  ml:
+    build: ./backend
+    image: epl_forecast_backend
+    command: python -m ml.build_features
+    environment:
+      DATABASE_URL: *database-url
+      MODELS_DIR: /models
+    volumes:
+      - ./models:/models
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  api:
+    build: ./backend
+    image: epl_forecast_backend
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
+    environment:
+      DATABASE_URL: *database-url
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-epl}
+      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:-grafana}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_DEFAULT_LANGUAGE: ru-RU
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/overview.json
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  scheduler:
+    build: ./backend
+    image: epl_forecast_backend
+    command: python -m scheduler
+    profiles: ["schedule"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: *database-url
+      DATA_DIR: /data
+      MODELS_DIR: /models
+      FOOTBALL_DATA_TOKEN: ${FOOTBALL_DATA_TOKEN:-}
+      SCHEDULE_INTERVAL_HOURS: ${SCHEDULE_INTERVAL_HOURS:-6}
+    volumes:
+      - ./data:/data
+      - ./models:/models
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:

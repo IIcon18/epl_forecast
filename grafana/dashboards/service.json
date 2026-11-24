@@ -1,0 +1,364 @@
+{
+  "uid": "epl-service",
+  "title": "Служебный: загрузки, проверки качества, модели",
+  "tags": [
+    "epl",
+    "служебный"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "graphTooltip": 0,
+  "refresh": "1m",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {
+    "hidden": true
+  },
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "Основной дашборд",
+      "type": "link",
+      "icon": "dashboard",
+      "url": "/d/epl-overview",
+      "targetBlank": false
+    }
+  ],
+  "panels": [
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Последний подбор: модели и их варианты",
+      "description": "Одна строка — один набор настроек. MAE — средняя ошибка в зрителях на проверке 2010–2018. Чем меньше, тем лучше. № — идентификатор для повтора эксперимента.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "epl-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 12
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "epl-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH latest_search AS (\n  SELECT created_at FROM experiments WHERE kind = 'cv'\n  GROUP BY created_at HAVING count(*) > count(DISTINCT model_name)\n  ORDER BY created_at DESC LIMIT 1\n), candidates AS (\n  SELECT e.*, count(*) OVER (PARTITION BY model_name) AS variants\n  FROM experiments e JOIN latest_search s USING (created_at)\n  WHERE e.kind = 'cv'\n)\nSELECT c.id AS \"№\",\n  CASE c.model_name WHEN 'naive' THEN 'Наивный прогноз' WHEN 'ridge' THEN 'Ridge'\n    WHEN 'hgb' THEN 'Бустинг' WHEN 'rf' THEN 'Случайный лес' ELSE c.model_name END AS \"Модель\",\n  c.variants AS \"Вариантов у модели\",\n  CASE c.model_name\n    WHEN 'naive' THEN 'Среднее последних 10 домашних матчей'\n    WHEN 'ridge' THEN concat('alpha = ', c.params->>'alpha')\n    WHEN 'hgb' THEN concat('глубина = ', c.params->>'max_depth', ', минимум матчей в листе = ', c.params->>'min_samples_leaf')\n    WHEN 'rf' THEN concat('деревьев = ', c.params->>'n_estimators')\n    ELSE c.params::text END AS \"Настройки\",\n  round((c.metrics->>'mae')::numeric, 2) AS \"MAE, зрителей\",\n  CASE WHEN c.model_name = 'naive' THEN 'База для сравнения'\n    WHEN EXISTS (SELECT 1 FROM experiments f WHERE f.created_at = c.created_at\n      AND f.kind = 'final' AND f.model_name = c.model_name AND f.params = c.params)\n    THEN 'Выбрана для прогноза' END AS \"Итог подбора\"\nFROM candidates c\nORDER BY CASE c.model_name WHEN 'naive' THEN 1 WHEN 'ridge' THEN 2 WHEN 'hgb' THEN 3 WHEN 'rf' THEN 4 ELSE 5 END,\n  (c.metrics->>'mae')::numeric, c.id"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Журнал экспериментов",
+      "description": "Каждый запуск обучения записывает конфигурацию, версию данных (хеш) и метрики. cv: скользящая проверка каждого набора параметров, test: тест 2022/23 с параметрами, выбранными по CV. Номер строки можно передать в ml.reproduce --id.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "epl-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 24,
+        "h": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "epl-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT id AS \"№\", created_at AS \"Время\", kind AS \"Вид\", model_name AS \"Модель\", params::text AS \"Параметры\", round((metrics->>'mae')::numeric, 2) AS \"MAE\", round((metrics->>'rmse')::numeric, 2) AS \"RMSE\", left(data_hash, 8) AS \"Хеш данных\", seed AS \"Зерно\" FROM experiments WHERE kind IN ('cv', 'test') ORDER BY id DESC LIMIT 30"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Время"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 1,
+      "type": "table",
+      "title": "Журнал загрузок данных",
+      "description": "Каждая строка: один запуск сборщика. Повторный запуск на тех же данных даёт нули в «Вставлено» и «Обновлено» (идемпотентность).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "epl-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "epl-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT id AS \"№\", started_at AS \"Начало\", source AS \"Источник\", status AS \"Статус\", rows_fetched AS \"Получено\", rows_inserted AS \"Вставлено\", rows_updated AS \"Обновлено\", rows_skipped AS \"Без изменений\", rows_rejected AS \"Отклонено\", left(error, 80) AS \"Ошибка\" FROM ingest_runs ORDER BY id DESC LIMIT 15"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          },
+          "noValue": "—"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Начало"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Статус"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "success": {
+                        "color": "#2a78d6",
+                        "text": "success"
+                      },
+                      "partial": {
+                        "color": "#eb6834",
+                        "text": "partial"
+                      },
+                      "failed": {
+                        "color": "#eb6834",
+                        "text": "failed"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Проверки качества данных: последний результат",
+      "description": "error: провал блокирует обновление данных; warn: предупреждение. Часть предупреждений ожидаема: матчи без зрителей в 2019–2020 и расхождения времени начала между источниками.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "epl-postgres"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 29,
+        "w": 14,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "epl-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT DISTINCT ON (table_name, check_name) table_name AS \"Таблица\", check_name AS \"Проверка\", severity AS \"Важность\", CASE WHEN passed THEN 'пройдена' ELSE 'не пройдена' END AS \"Результат\", checked_at AS \"Когда\" FROM dq_checks ORDER BY table_name, check_name, checked_at DESC"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Когда"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Результат"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "пройдена": {
+                        "color": "#2a78d6",
+                        "text": "пройдена"
+                      },
+                      "не пройдена": {
+                        "color": "#eb6834",
+                        "text": "не пройдена"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Версии моделей",
+      "description": "production: рабочая версия, по ней считаются прогнозы; archived: прежние версии.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "epl-postgres"
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 29,
+        "w": 10,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "epl-postgres"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT id AS \"№\", model_name AS \"Модель\", status AS \"Статус\", trained_at AS \"Обучена\", round((metrics->'cv'->>'mae')::numeric) AS \"MAE (проверка)\", round((metrics->'test'->>'mae')::numeric) AS \"MAE (тест)\", artifact_path AS \"Файл\" FROM model_versions ORDER BY id DESC LIMIT 10"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Обучена"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

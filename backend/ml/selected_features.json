@@ -1,0 +1,82 @@
+{
+  "constant_excluded": [
+    "a_news_count",
+    "a_news_sent",
+    "h_news_count",
+    "h_news_sent"
+  ],
+  "start_mae": 1551.0697732565675,
+  "steps": [
+    {
+      "scores_without_group": {
+        "calendar": 1557.7187344476679,
+        "context": 1551.5818491067334,
+        "form": 1555.0659822900448,
+        "table": 1557.9860952874808,
+        "attendance_history": 1554.5710490676934,
+        "opponent_pull": 1548.4861417159098,
+        "club": 1554.6877756156553
+      },
+      "removed": "opponent_pull"
+    },
+    {
+      "scores_without_group": {
+        "calendar": 1556.2175183084812,
+        "context": 1548.7109343645284,
+        "form": 1548.2221421814952,
+        "table": 1553.2739804596297,
+        "attendance_history": 1548.0335405843114,
+        "club": 1547.2371606918116
+      },
+      "removed": "club"
+    },
+    {
+      "scores_without_group": {
+        "calendar": 1550.207804071002,
+        "context": 1549.1094309119815,
+        "form": 1543.8701240685057,
+        "table": 1557.483939702732,
+        "attendance_history": 1539.6584528788605
+      },
+      "removed": "attendance_history"
+    },
+    {
+      "scores_without_group": {
+        "calendar": 1540.7439043357303,
+        "context": 1538.92006208405,
+        "form": 1540.3621162128272,
+        "table": 1552.220848488165
+      },
+      "removed": "context"
+    },
+    {
+      "scores_without_group": {
+        "calendar": 1540.29096037383,
+        "form": 1539.293379879406,
+        "table": 1551.5600904641017
+      },
+      "removed": "form"
+    },
+    {
+      "scores_without_group": {
+        "calendar": 1541.5706407966134,
+        "table": 1544.4434217827854
+      },
+      "removed": "calendar"
+    }
+  ],
+  "groups": [
+    "table"
+  ],
+  "features": [
+    "h_played",
+    "a_played",
+    "h_season_ppg",
+    "a_season_ppg",
+    "h_pos",
+    "a_pos",
+    "h_prev_ppg",
+    "a_prev_ppg"
+  ],
+  "final_mae": 1541.5706407966134
+}
