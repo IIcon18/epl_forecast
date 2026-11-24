@@ -67,6 +67,16 @@
   "annotations": {
     "list": []
   },
+  "links": [
+    {
+      "title": "Служебный дашборд: загрузки, проверки, эксперименты",
+      "type": "link",
+      "icon": "doc",
+      "url": "/d/epl-service",
+      "targetBlank": false,
+      "tooltip": "Журнал загрузок, проверки качества, версии моделей"
+    }
+  ],
   "panels": [
     {
       "id": 1,
@@ -1267,164 +1277,6 @@
           }
         ]
       }
-    },
-    {
-      "id": 21,
-      "type": "row",
-      "title": "Служебное: загрузки и эксперименты",
-      "collapsed": true,
-      "gridPos": {
-        "x": 0,
-        "y": 44,
-        "w": 24,
-        "h": 1
-      },
-      "panels": [
-        {
-          "id": 19,
-          "type": "table",
-          "title": "Журнал загрузок данных",
-          "description": "",
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "epl-postgres"
-          },
-          "gridPos": {
-            "x": 0,
-            "y": 45,
-            "w": 12,
-            "h": 9
-          },
-          "targets": [
-            {
-              "refId": "A",
-              "datasource": {
-                "type": "grafana-postgresql-datasource",
-                "uid": "epl-postgres"
-              },
-              "editorMode": "code",
-              "format": "table",
-              "rawQuery": true,
-              "rawSql": "SELECT id AS \"№\", started_at AS \"Начало\", source AS \"Источник\", status AS \"Статус\", rows_fetched AS \"Получено\", rows_inserted AS \"Вставлено\", rows_updated AS \"Обновлено\", rows_skipped AS \"Без изменений\", rows_rejected AS \"Отклонено\" FROM ingest_runs ORDER BY id DESC LIMIT 12"
-            }
-          ],
-          "options": {
-            "showHeader": true,
-            "cellHeight": "sm"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "custom": {
-                "align": "auto"
-              }
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Начало"
-                },
-                "properties": [
-                  {
-                    "id": "unit",
-                    "value": "dateTimeAsLocal"
-                  }
-                ]
-              },
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Статус"
-                },
-                "properties": [
-                  {
-                    "id": "custom.cellOptions",
-                    "value": {
-                      "type": "color-text"
-                    }
-                  },
-                  {
-                    "id": "mappings",
-                    "value": [
-                      {
-                        "type": "value",
-                        "options": {
-                          "success": {
-                            "color": "#2a78d6",
-                            "text": "success"
-                          },
-                          "partial": {
-                            "color": "#eb6834",
-                            "text": "partial"
-                          },
-                          "failed": {
-                            "color": "#eb6834",
-                            "text": "failed"
-                          }
-                        }
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "id": 20,
-          "type": "table",
-          "title": "Журнал экспериментов",
-          "description": "Каждый запуск обучения записывает конфигурацию, версию данных (хеш) и метрики. Вид: cv — скользящая проверка, test — тест 2022/23.",
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "epl-postgres"
-          },
-          "gridPos": {
-            "x": 12,
-            "y": 45,
-            "w": 12,
-            "h": 9
-          },
-          "targets": [
-            {
-              "refId": "A",
-              "datasource": {
-                "type": "grafana-postgresql-datasource",
-                "uid": "epl-postgres"
-              },
-              "editorMode": "code",
-              "format": "table",
-              "rawQuery": true,
-              "rawSql": "SELECT id AS \"№\", created_at AS \"Время\", kind AS \"Вид\", model_name AS \"Модель\", round((metrics->>'mae')::numeric) AS \"MAE\", round((metrics->>'rmse')::numeric) AS \"RMSE\", left(data_hash, 8) AS \"Хеш данных\" FROM experiments WHERE kind IN ('cv', 'test') ORDER BY id DESC LIMIT 16"
-            }
-          ],
-          "options": {
-            "showHeader": true,
-            "cellHeight": "sm"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "custom": {
-                "align": "auto"
-              }
-            },
-            "overrides": [
-              {
-                "matcher": {
-                  "id": "byName",
-                  "options": "Время"
-                },
-                "properties": [
-                  {
-                    "id": "unit",
-                    "value": "dateTimeAsLocal"
-                  }
-                ]
-              }
-            ]
-          }
-        }
-      ]
     }
   ]
 }

@@ -39,12 +39,17 @@ docker compose run --rm --build ml python -m ml.train         # обучение
 docker compose up -d --build grafana api                      # дашборд и API
 ```
 
-- Дашборд: http://localhost:3000 (просмотр без входа; администратор `admin`, пароль в `GRAFANA_ADMIN_PASSWORD`)
+- Дашборд: http://localhost:3000 (просмотр без входа; администратор `admin`, пароль в `GRAFANA_ADMIN_PASSWORD`);
+  служебный дашборд (журнал загрузок, проверки качества, версии моделей, эксперименты) открывается по ссылке сверху
 - API и пробные запросы: http://localhost:8000/docs
 
 Ключ `--build` нужен всегда: без него Docker запускает старый образ без свежих миграций и кода.
 Без токена CSV и RSS загрузятся, а football-data.org будет помечен в журнале как `failed`.
 Сброс: `docker compose down -v` удаляет базу, шаги выше создают её заново.
+
+**Регулярное обновление** (по желанию): `docker compose --profile schedule up -d --build scheduler` раз в `SCHEDULE_INTERVAL_HOURS` часов (по умолчанию 6)
+запускает три шага: сбор данных, признаки, прогноз новых матчей рабочей моделью (без переобучения). Сбой одного источника не останавливает цикл,
+а если не пройдена проверка качества витрины признаков, прогноз на ней не строится. Один цикл вручную: `docker compose --profile schedule run --rm scheduler python -m scheduler --once`.
 
 Конфигурация только через `.env` и переменные окружения (шаблон: `.env.example`), в репозиторий секреты не попадают.
 
@@ -55,11 +60,11 @@ docker compose up -d --build grafana api                      # дашборд �
 | Несколько разнородных источников | CSV, REST API, RSS (текст) | ниже |
 | Инкрементальность и идемпотентность | UPSERT по `(season, home, away)`, водяные знаки по `lastUpdated`, дедупликация RSS; повторный запуск: 0 вставок, 0 обновлений | [docs/db_schema.md](docs/db_schema.md) |
 | Устойчивость к сбоям, журнал загрузок | повторы с паузой, лимит запросов (429), сбой источника не останавливает остальные; таблица `ingest_runs` | |
-| Контроль качества данных | таблица `dq_checks`, разметка достоверности посещаемости | [docs/db_schema.md](docs/db_schema.md) |
-| Признаки без утечки | лаговые, оконные, календарные, тональность новостей; единый код для обучения и прогноза; 43 теста на утечку | [docs/features.md](docs/features.md) |
+| Контроль качества данных | таблица `dq_checks`: проверки входных данных, разметка достоверности посещаемости и проверки витрины признаков (полнота, диапазоны, готовность к прогнозу) | [docs/db_schema.md](docs/db_schema.md) |
+| Признаки без утечки | лаговые, оконные, календарные, тональность новостей; единый код для обучения и прогноза; 43 теста на утечку и 2 на проверки витрины | [docs/features.md](docs/features.md) |
 | Модели и валидация | наивная база, линейная модель, бустинг, случайный лес; проверка во времени; метрики в зрителях и в % вместимости | [docs/models.md](docs/models.md) |
 | Реестр экспериментов и версий моделей | таблицы `experiments`, `model_versions`, `predictions` | [docs/models.md](docs/models.md) |
-| Дашборд | Grafana: факт, прогноз, качество модели, фильтры, автообновление | `grafana/dashboards/overview.json` |
+| Дашборд | Grafana: факт, прогноз, качество модели, фильтры, автообновление; отдельный служебный дашборд | `grafana/dashboards/` |
 
 ### Источники данных
 
@@ -86,15 +91,15 @@ docker compose up -d --build grafana api                      # дашборд �
 python -m venv .venv && .venv/bin/pip install -r backend/requirements-dev.txt
 docker compose up -d db
 (cd backend && ../.venv/bin/python -m alembic upgrade head)
-(cd backend && ../.venv/bin/python -m pytest -q)        # 54 теста; тесты API пропускаются без базы
+(cd backend && ../.venv/bin/python -m pytest -q)        # 56 тестов; тесты API пропускаются без базы
 ```
 
 - Миграции: `cd backend && ../.venv/bin/python -m alembic revision --autogenerate -m "описание"`.
 - Отбор признаков: `docker compose run --rm --build ml python -m ml.select_features`.
 - Загрузить один источник: `docker compose run --rm --build pipeline python -m pipeline.run csv|football_data|rss`.
 - Расписание: та же команда `pipeline` из cron.
-- Дашборд можно править в интерфейсе Grafana, но правка хранится только в самой Grafana. Чтобы сохранить в репозитории:
-  Share → Export → Save to file и заменить `grafana/dashboards/overview.json`.
+- Дашборды можно править в интерфейсе Grafana, но правка хранится только в самой Grafana. Чтобы сохранить в репозитории:
+  Share → Export → Save to file и заменить файл в `grafana/dashboards/` (`overview.json` или `service.json`).
 - Ноутбук с результатами `notebooks/overview.ipynb` (`overview.html` — то же без кода, для отправки):
   `cd notebooks && ../.venv/bin/python -m nbconvert --to notebook --execute overview.ipynb --inplace`.
 
@@ -105,8 +110,9 @@ backend/
   db/          модели SQLAlchemy, подключение
   alembic/     миграции
   pipeline/    сбор данных, проверки качества, журнал загрузок
-  ml/          признаки, обучение, валидация, реестр
+  ml/          признаки, обучение, прогноз, валидация, реестр
   api/         FastAPI
+  scheduler.py регулярный цикл: сбор, признаки, прогноз
   tests/       тесты (в том числе на утечку признаков)
 grafana/       источник данных и дашборд
 notebooks/     обзор данных и моделей

@@ -22,6 +22,7 @@ CATEGORICAL = {"home_team_id"}
 SELECTED_PATH = Path(__file__).with_name("selected_features.json")
 TEST_SEASON = 2022
 LAST_TRAIN_SEASON = 2018
+FIRST_FORECAST_SEASON = TEST_SEASON + 1
 
 
 def load_dataset(conn: Connection) -> pd.DataFrame:

@@ -96,5 +96,26 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  scheduler:
+    build: ./backend
+    image: epl_forecast_backend
+    command: python -m scheduler
+    profiles: ["schedule"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: *database-url
+      DATA_DIR: /data
+      MODELS_DIR: /models
+      FOOTBALL_DATA_TOKEN: ${FOOTBALL_DATA_TOKEN:-}
+      SCHEDULE_INTERVAL_HOURS: ${SCHEDULE_INTERVAL_HOURS:-6}
+    volumes:
+      - ./data:/data
+      - ./models:/models
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
 volumes:
   pgdata:

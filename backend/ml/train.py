@@ -1,17 +1,14 @@
 import logging
-import os
 import warnings
-from pathlib import Path
 
 import joblib
-import pandas as pd
 from sqlalchemy import update
-from sqlalchemy.dialects.postgresql import insert
 
-from db.models import ModelVersion, Prediction
+from db.models import ModelVersion
 from db.session import SessionLocal, engine
 from ml import registry
 from ml.dataset import (
+    FIRST_FORECAST_SEASON,
     LAST_TRAIN_SEASON,
     TEST_SEASON,
     data_hash,
@@ -31,9 +28,7 @@ from ml.validation import (
 )
 
 log = logging.getLogger(__name__)
-MODELS_DIR = Path(os.environ.get("MODELS_DIR", Path(__file__).resolve().parents[2] / "models"))
-FIRST_FORECAST_SEASON = TEST_SEASON + 1
-CHUNK = 1000
+MODELS_DIR = registry.MODELS_DIR
 
 
 def print_table(title: str, results: dict[str, dict]) -> None:
@@ -42,14 +37,6 @@ def print_table(title: str, results: dict[str, dict]) -> None:
     for name, m in results.items():
         log.info("%-7s %6.0f %6.0f %6.0f %7.2f %14.2f %10.1f", name, m["mae"], m["medae"], m["rmse"],
                  m["mape"], m["mae_pct_capacity"], m["within_5pct_capacity"])
-
-
-def prediction_rows(frame: pd.DataFrame, version_id: int, kind: str) -> list[dict]:
-    return [
-        {"model_version_id": version_id, "match_id": int(r.match_id), "kind": kind,
-         "predicted": int(round(r.pred)), "baseline": int(round(r.baseline))}
-        for r in frame.itertuples()
-    ]
 
 
 def run() -> None:
@@ -110,15 +97,10 @@ def run() -> None:
                      "name": best, "seed": SEED, "train_seasons": train_seasons}, artifact)
         version.artifact_path = artifact.name
 
-        rows = (prediction_rows(cv_frames[best], version.id, "backtest")
-                + prediction_rows(test_frames[best], version.id, "backtest")
-                + prediction_rows(forecast, version.id, "forecast"))
-        for start in range(0, len(rows), CHUNK):
-            stmt = insert(Prediction).values(rows[start:start + CHUNK])
-            session.execute(stmt.on_conflict_do_update(
-                index_elements=["model_version_id", "match_id"],
-                set_={"kind": stmt.excluded.kind, "predicted": stmt.excluded.predicted,
-                      "baseline": stmt.excluded.baseline}))
+        rows = (registry.prediction_rows(cv_frames[best], version.id, "backtest")
+                + registry.prediction_rows(test_frames[best], version.id, "backtest")
+                + registry.prediction_rows(forecast, version.id, "forecast"))
+        registry.save_predictions(session, rows)
         log.info("версия модели %d (%s) в эксплуатации, прогнозов записано %d, из них на будущие матчи %d",
                  version.id, best, len(rows), int((forecast["status"].isin(["TIMED", "SCHEDULED"])).sum()))
 
